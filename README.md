@@ -1,149 +1,86 @@
 # Distributed Rate Limiter
 
-A Redis-based rate limiter designed for distributed environments, supporting Token Bucket and Sliding Window algorithms.
+A Redis-based rate limiter for distributed environments, supporting Token Bucket and Sliding Window algorithms.
 
 ## Features
 
-- **Multiple Algorithm Support**
-  - Token Bucket: Allows burst traffic, refills tokens at a constant rate
-  - Sliding Window Log: Precise rate limiting without boundary issues
-  - (Planned) Fixed Window Counter
-  - (Planned) Sliding Window Counter
-  - (Planned) Leaky Bucket
-
-- **Distributed Environment Support**
-  - Redis-based distributed state storage
-  - Atomic operations via Lua scripts
-  - Shared rate limits across multiple instances
-
-- **Monitoring**
-  - Prometheus metrics integration
-  - Grafana dashboard support
-  - Spring Actuator endpoints
+- **Multiple Algorithms**: Token Bucket (burst-friendly) and Sliding Window Log (precise)
+- **Distributed**: Redis-based state sharing with atomic Lua script operations
+- **Fail Open**: Maintains service availability during Redis failures
+- **Observable**: Prometheus metrics and Grafana dashboard ready
 
 ## Tech Stack
 
-- Kotlin 1.9
-- Spring Boot 3.2
-- Spring Data Redis (Reactive)
-- Kotlin Coroutines
-- Testcontainers
-- Docker
+| Layer | Technology |
+|-------|------------|
+| Language | Kotlin 1.9 |
+| Framework | Spring Boot 3.2 + WebFlux |
+| Async | Kotlin Coroutines |
+| Storage | Redis 7.x (Lettuce) |
+| Monitoring | Micrometer + Prometheus |
+| Testing | JUnit 5 + Testcontainers |
 
 ## Quick Start
 
-### 1. Start Redis
-
 ```bash
-cd docker
-docker-compose up -d redis
-```
+# Start Redis
+docker-compose -f docker/docker-compose.yml up -d
 
-### 2. Run Application
-
-```bash
+# Run application
 ./gradlew bootRun
-```
 
-### 3. Test API
-
-```bash
-# Check rate limit (Token Bucket)
+# Test API
 curl http://localhost:8080/api/v1/rate-limit/check
-
-# Check rate limit (Sliding Window)
-curl "http://localhost:8080/api/v1/rate-limit/check?algorithm=SLIDING_WINDOW_LOG"
-
-# Get remaining limit
-curl http://localhost:8080/api/v1/rate-limit/remaining
-
-# Reset rate limit
-curl -X DELETE "http://localhost:8080/api/v1/rate-limit/reset?key=127.0.0.1"
 ```
 
-## API Reference
+## API
 
 ### Check Rate Limit
 
+```bash
+GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 ```
-GET /api/v1/rate-limit/check
-```
-
-**Parameters:**
-- `algorithm` (optional): `TOKEN_BUCKET` | `SLIDING_WINDOW_LOG` (default: `TOKEN_BUCKET`)
-- `key` (optional): Client identifier (default: request IP)
 
 **Response:**
 ```json
 {
   "allowed": true,
-  "key": "user:123",
   "remainingTokens": 95,
-  "resetTimeSeconds": 10,
-  "message": "Request allowed"
+  "resetTimeSeconds": 10
 }
 ```
 
-**Response Headers:**
-- `X-RateLimit-Remaining`: Remaining request count
-- `X-RateLimit-Reset`: Time until reset (seconds)
-- `Retry-After`: Wait time for retry (seconds, only on 429 response)
+**Headers:**
+- `X-RateLimit-Remaining`: Remaining requests
+- `X-RateLimit-Reset`: Seconds until reset
+- `Retry-After`: Seconds to wait (429 only)
 
-### Get Remaining Limit
+### Other Endpoints
 
-```
-GET /api/v1/rate-limit/remaining
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/rate-limit/remaining` | Get remaining limit |
+| DELETE | `/api/v1/rate-limit/reset?key={key}` | Reset rate limit |
 
-### Reset Rate Limit
-
-```
-DELETE /api/v1/rate-limit/reset?key={key}
-```
-
-## Algorithm Details
+## Algorithms
 
 ### Token Bucket
 
-```
-┌─────────────────────────────────────┐
-│  Bucket (capacity: 100)             │
-│  ┌───┬───┬───┬───┬───┬───┬───┬───┐ │
-│  │ ● │ ● │ ● │ ● │ ● │   │   │   │ │  ← Tokens
-│  └───┴───┴───┴───┴───┴───┴───┴───┘ │
-│         ↑                           │
-│    Refill: 10 tokens/sec            │
-└─────────────────────────────────────┘
-```
-
-- Store up to `capacity` tokens in the bucket
-- Consume 1 token per request
-- Refill `refill_rate` tokens per second
-- Allow burst traffic when bucket is full
+- Allows burst traffic up to bucket capacity
+- Refills tokens at a constant rate
+- Best for: General API rate limiting
 
 ### Sliding Window Log
 
-```
-     Window (60 seconds)
-├────────────────────────────────────┤
-│  ●  ●     ●  ● ●    ●   ●  ●  ●   │  ← Request timestamps
-├────────────────────────────────────┤
-                                    now
-```
+- Precise request counting within time window
+- No boundary issues
+- Best for: Strict rate limiting requirements
 
-- Store each request timestamp in Redis Sorted Set
-- Accurately count requests within the window
-- Precise rate limiting without boundary issues
-
-### Algorithm Comparison
-
-| Criteria | Token Bucket | Sliding Window Log |
-|----------|--------------|-------------------|
+| Criteria | Token Bucket | Sliding Window |
+|----------|--------------|----------------|
+| Burst | Allowed | Not allowed |
+| Memory | O(1) | O(N) |
 | Accuracy | High | Very High |
-| Burst Allowed | Yes | No |
-| Memory Usage | Low (2 fields) | High (per request) |
-| Complexity | O(1) | O(N) |
-| Best For | General API Rate Limiting | Precise limiting required |
 
 ## Configuration
 
@@ -151,59 +88,24 @@ DELETE /api/v1/rate-limit/reset?key={key}
 rate-limiter:
   default:
     algorithm: TOKEN_BUCKET
-    capacity: 100          # Max tokens/requests
-    refill-rate: 10        # Tokens refilled per second
-    window-size: 60        # Window size (seconds)
+    capacity: 100
+    refill-rate: 10
+    window-size: 60
 ```
 
 ## Monitoring
 
-### Prometheus Metrics
+```bash
+# Health check
+curl http://localhost:8080/actuator/health
 
-- `rate_limiter_requests_total`: Total request count
-- `rate_limiter_check_seconds`: Check duration
-
-### Endpoints
-
-- `/actuator/health`: Health check
-- `/actuator/prometheus`: Prometheus metrics
-- `/actuator/metrics`: Spring metrics
-
-## Project Structure
-
-```
-src/main/kotlin/com/jsoonworld/ratelimiter/
-├── algorithm/
-│   ├── RateLimiter.kt              # Interface
-│   ├── TokenBucketRateLimiter.kt   # Token Bucket implementation
-│   └── SlidingWindowRateLimiter.kt # Sliding Window implementation
-├── config/
-│   └── RedisConfig.kt              # Redis configuration
-├── controller/
-│   └── RateLimitController.kt      # REST API
-├── model/
-│   ├── RateLimitAlgorithm.kt       # Algorithm enum
-│   └── RateLimitResult.kt          # Result DTO
-├── service/
-│   └── RateLimitService.kt         # Business logic
-└── RateLimiterApplication.kt       # Main class
+# Prometheus metrics
+curl http://localhost:8080/actuator/prometheus
 ```
 
-## Documentation
-
-- [1-Pager](docs/1-pager.md): Project overview and goals
-- [Technical Specification](docs/tech-spec.md): Detailed design documentation
-
-## Roadmap
-
-- [ ] Fixed Window Counter algorithm
-- [ ] Sliding Window Counter algorithm (hybrid)
-- [ ] Leaky Bucket algorithm
-- [ ] Dynamic rate limits based on configuration
-- [ ] Custom limits per client
-- [ ] Redis Cluster support
-- [ ] Spring AOP-based annotations
-- [ ] SDK/Library distribution
+**Key Metrics:**
+- `rate_limiter_requests_total{algorithm, allowed}`
+- `rate_limiter_check_seconds`
 
 ## License
 
