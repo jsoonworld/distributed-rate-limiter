@@ -1,63 +1,63 @@
 # Distributed Rate Limiter
 
-Redis 기반 분산 환경에서 동작하는 Rate Limiter 구현체입니다.
+A Redis-based rate limiter designed for distributed environments, supporting Token Bucket and Sliding Window algorithms.
 
 ## Features
 
-- **다양한 알고리즘 지원**
-  - Token Bucket: 버스트 트래픽 허용, 일정 속도로 토큰 리필
-  - Sliding Window Log: 정확한 rate limiting, 경계 문제 없음
-  - (예정) Fixed Window Counter
-  - (예정) Sliding Window Counter
-  - (예정) Leaky Bucket
+- **Multiple Algorithm Support**
+  - Token Bucket: Allows burst traffic, refills tokens at a constant rate
+  - Sliding Window Log: Precise rate limiting without boundary issues
+  - (Planned) Fixed Window Counter
+  - (Planned) Sliding Window Counter
+  - (Planned) Leaky Bucket
 
-- **분산 환경 지원**
-  - Redis를 사용한 분산 상태 저장
-  - Lua 스크립트를 통한 원자적 연산
-  - 여러 인스턴스에서 동일한 rate limit 공유
+- **Distributed Environment Support**
+  - Redis-based distributed state storage
+  - Atomic operations via Lua scripts
+  - Shared rate limits across multiple instances
 
-- **모니터링**
-  - Prometheus 메트릭 연동
-  - Grafana 대시보드 지원
-  - Spring Actuator 엔드포인트
+- **Monitoring**
+  - Prometheus metrics integration
+  - Grafana dashboard support
+  - Spring Actuator endpoints
 
 ## Tech Stack
 
 - Kotlin 1.9
 - Spring Boot 3.2
 - Spring Data Redis (Reactive)
-- Coroutines
+- Kotlin Coroutines
 - Testcontainers
 - Docker
 
 ## Quick Start
 
-### 1. Redis 실행
+### 1. Start Redis
 
 ```bash
 cd docker
 docker-compose up -d redis
 ```
 
-### 2. 애플리케이션 실행
+### 2. Run Application
 
 ```bash
 ./gradlew bootRun
 ```
 
-### 3. API 테스트
+### 3. Test API
 
 ```bash
-# Rate limit 체크 (Token Bucket)
+# Check rate limit (Token Bucket)
 curl http://localhost:8080/api/v1/rate-limit/check
 
-# Rate limit 체크 (Sliding Window)
+# Check rate limit (Sliding Window)
 curl "http://localhost:8080/api/v1/rate-limit/check?algorithm=SLIDING_WINDOW_LOG"
 
-# 남은 한도 확인
+# Get remaining limit
 curl http://localhost:8080/api/v1/rate-limit/remaining
 
-# Rate limit 리셋
+# Reset rate limit
 curl -X DELETE "http://localhost:8080/api/v1/rate-limit/reset?key=127.0.0.1"
 ```
 
@@ -71,12 +71,23 @@ GET /api/v1/rate-limit/check
 
 **Parameters:**
 - `algorithm` (optional): `TOKEN_BUCKET` | `SLIDING_WINDOW_LOG` (default: `TOKEN_BUCKET`)
-- `key` (optional): 클라이언트 식별자 (기본값: 요청 IP)
+- `key` (optional): Client identifier (default: request IP)
+
+**Response:**
+```json
+{
+  "allowed": true,
+  "key": "user:123",
+  "remainingTokens": 95,
+  "resetTimeSeconds": 10,
+  "message": "Request allowed"
+}
+```
 
 **Response Headers:**
-- `X-RateLimit-Remaining`: 남은 요청 수
-- `X-RateLimit-Reset`: 리셋까지 남은 시간(초)
-- `Retry-After`: 재시도까지 대기 시간(초) - 429 응답 시
+- `X-RateLimit-Remaining`: Remaining request count
+- `X-RateLimit-Reset`: Time until reset (seconds)
+- `Retry-After`: Wait time for retry (seconds, only on 429 response)
 
 ### Get Remaining Limit
 
@@ -98,31 +109,41 @@ DELETE /api/v1/rate-limit/reset?key={key}
 ┌─────────────────────────────────────┐
 │  Bucket (capacity: 100)             │
 │  ┌───┬───┬───┬───┬───┬───┬───┬───┐ │
-│  │ ● │ ● │ ● │ ● │ ● │   │   │   │ │  ← 토큰
+│  │ ● │ ● │ ● │ ● │ ● │   │   │   │ │  ← Tokens
 │  └───┴───┴───┴───┴───┴───┴───┴───┘ │
 │         ↑                           │
 │    Refill: 10 tokens/sec            │
 └─────────────────────────────────────┘
 ```
 
-- 버킷에 최대 `capacity`개의 토큰 저장
-- 요청마다 토큰 1개 소비
-- 초당 `refill_rate`개의 토큰 보충
-- 버킷이 가득 차면 버스트 트래픽 허용
+- Store up to `capacity` tokens in the bucket
+- Consume 1 token per request
+- Refill `refill_rate` tokens per second
+- Allow burst traffic when bucket is full
 
 ### Sliding Window Log
 
 ```
      Window (60 seconds)
 ├────────────────────────────────────┤
-│  ●  ●     ●  ● ●    ●   ●  ●  ●   │  ← 요청 타임스탬프
+│  ●  ●     ●  ● ●    ●   ●  ●  ●   │  ← Request timestamps
 ├────────────────────────────────────┤
                                     now
 ```
 
-- 각 요청의 타임스탬프를 Redis Sorted Set에 저장
-- 윈도우 내 요청 수를 정확하게 계산
-- 경계 문제 없이 정확한 rate limiting
+- Store each request timestamp in Redis Sorted Set
+- Accurately count requests within the window
+- Precise rate limiting without boundary issues
+
+### Algorithm Comparison
+
+| Criteria | Token Bucket | Sliding Window Log |
+|----------|--------------|-------------------|
+| Accuracy | High | Very High |
+| Burst Allowed | Yes | No |
+| Memory Usage | Low (2 fields) | High (per request) |
+| Complexity | O(1) | O(N) |
+| Best For | General API Rate Limiting | Precise limiting required |
 
 ## Configuration
 
@@ -130,54 +151,59 @@ DELETE /api/v1/rate-limit/reset?key={key}
 rate-limiter:
   default:
     algorithm: TOKEN_BUCKET
-    capacity: 100          # 최대 토큰/요청 수
-    refill-rate: 10        # 초당 리필 토큰 수
-    window-size: 60        # 윈도우 크기 (초)
+    capacity: 100          # Max tokens/requests
+    refill-rate: 10        # Tokens refilled per second
+    window-size: 60        # Window size (seconds)
 ```
 
 ## Monitoring
 
 ### Prometheus Metrics
 
-- `rate_limiter_requests_total`: 총 요청 수
-- `rate_limiter_check_seconds`: 체크 소요 시간
+- `rate_limiter_requests_total`: Total request count
+- `rate_limiter_check_seconds`: Check duration
 
 ### Endpoints
 
-- `/actuator/health`: 헬스 체크
-- `/actuator/prometheus`: Prometheus 메트릭
-- `/actuator/metrics`: Spring 메트릭
+- `/actuator/health`: Health check
+- `/actuator/prometheus`: Prometheus metrics
+- `/actuator/metrics`: Spring metrics
 
 ## Project Structure
 
 ```
 src/main/kotlin/com/jsoonworld/ratelimiter/
 ├── algorithm/
-│   ├── RateLimiter.kt              # 인터페이스
-│   ├── TokenBucketRateLimiter.kt   # Token Bucket 구현
-│   └── SlidingWindowRateLimiter.kt # Sliding Window 구현
+│   ├── RateLimiter.kt              # Interface
+│   ├── TokenBucketRateLimiter.kt   # Token Bucket implementation
+│   └── SlidingWindowRateLimiter.kt # Sliding Window implementation
 ├── config/
-│   └── RedisConfig.kt              # Redis 설정
+│   └── RedisConfig.kt              # Redis configuration
 ├── controller/
 │   └── RateLimitController.kt      # REST API
 ├── model/
-│   ├── RateLimitAlgorithm.kt       # 알고리즘 enum
-│   └── RateLimitResult.kt          # 결과 DTO
+│   ├── RateLimitAlgorithm.kt       # Algorithm enum
+│   └── RateLimitResult.kt          # Result DTO
 ├── service/
-│   └── RateLimitService.kt         # 비즈니스 로직
-└── RateLimiterApplication.kt       # 메인 클래스
+│   └── RateLimitService.kt         # Business logic
+└── RateLimiterApplication.kt       # Main class
 ```
+
+## Documentation
+
+- [1-Pager](docs/1-pager.md): Project overview and goals
+- [Technical Specification](docs/tech-spec.md): Detailed design documentation
 
 ## Roadmap
 
-- [ ] Fixed Window Counter 알고리즘
-- [ ] Sliding Window Counter 알고리즘 (하이브리드)
-- [ ] Leaky Bucket 알고리즘
-- [ ] 설정 기반 동적 rate limit
-- [ ] 클라이언트별 커스텀 한도
-- [ ] Redis Cluster 지원
-- [ ] Spring AOP 기반 어노테이션
-- [ ] SDK/라이브러리 형태로 배포
+- [ ] Fixed Window Counter algorithm
+- [ ] Sliding Window Counter algorithm (hybrid)
+- [ ] Leaky Bucket algorithm
+- [ ] Dynamic rate limits based on configuration
+- [ ] Custom limits per client
+- [ ] Redis Cluster support
+- [ ] Spring AOP-based annotations
+- [ ] SDK/Library distribution
 
 ## License
 
