@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: distributed-rate-limiter
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 2
+
+rate-limiter:
+  default:
+    algorithm: TOKEN_BUCKET
+    capacity: 100
+    refill-rate: 10
+    window-size: 60
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.jsoonworld.ratelimiter: DEBUG
