@@ -1,6 +1,7 @@
 package com.jsoonworld.ratelimiter.algorithm
 
 import com.jsoonworld.ratelimiter.config.RateLimiterProperties
+import com.jsoonworld.ratelimiter.model.RateLimitAlgorithm
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
@@ -46,7 +47,7 @@ class SlidingWindowRateLimiterTest {
     fun setUp() {
         // Window size: 60 seconds, Max requests: 100
         val properties = RateLimiterProperties(
-            algorithm = "SLIDING_WINDOW",
+            algorithm = RateLimitAlgorithm.SLIDING_WINDOW_LOG,
             capacity = 100,
             refillRate = 10,
             windowSize = 60
@@ -158,7 +159,7 @@ class SlidingWindowRateLimiterTest {
     fun `should allow requests after window expires`(): Unit = runBlocking {
         // Given - create a rate limiter with a very short window (2 seconds)
         val shortWindowProperties = RateLimiterProperties(
-            algorithm = "SLIDING_WINDOW",
+            algorithm = RateLimitAlgorithm.SLIDING_WINDOW_LOG,
             capacity = 5,
             refillRate = 10,
             windowSize = 2
@@ -190,7 +191,7 @@ class SlidingWindowRateLimiterTest {
     fun `should gradually allow more requests as old ones expire from window`(): Unit = runBlocking {
         // Given - create a rate limiter with a very short window (2 seconds)
         val shortWindowProperties = RateLimiterProperties(
-            algorithm = "SLIDING_WINDOW",
+            algorithm = RateLimitAlgorithm.SLIDING_WINDOW_LOG,
             capacity = 3,
             refillRate = 10,
             windowSize = 2

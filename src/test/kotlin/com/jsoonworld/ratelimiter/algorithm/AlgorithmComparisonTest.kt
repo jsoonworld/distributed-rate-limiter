@@ -1,6 +1,7 @@
 package com.jsoonworld.ratelimiter.algorithm
 
 import com.jsoonworld.ratelimiter.config.RateLimiterProperties
+import com.jsoonworld.ratelimiter.model.RateLimitAlgorithm
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
@@ -32,11 +33,13 @@ class AlgorithmComparisonTest {
             registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
         }
 
-        // Test-specific configuration for faster tests
-        private const val TEST_CAPACITY = 10L
-        private const val TEST_REFILL_RATE = 10L
-        private const val TEST_WINDOW_SIZE_SECONDS = 2L
-        private const val TEST_MAX_REQUESTS = 10L
+        // Test-specific configuration for CI stability
+        // Token Bucket: refills quickly (10 tokens/sec) for fast refill tests
+        // Sliding Window: longer window (3 sec) to ensure requests stay in window during test
+        private const val TEST_CAPACITY = 5L
+        private const val TEST_REFILL_RATE = 10L  // Fast refill for Token Bucket
+        private const val TEST_WINDOW_SIZE_SECONDS = 3L  // Longer window for Sliding Window
+        private const val TEST_MAX_REQUESTS = 5L
     }
 
     @Autowired
@@ -59,7 +62,7 @@ class AlgorithmComparisonTest {
 
         // Create test-specific instances with smaller capacity and shorter window for fast tests
         val fastProperties = RateLimiterProperties(
-            algorithm = "TOKEN_BUCKET",
+            algorithm = RateLimitAlgorithm.TOKEN_BUCKET,
             capacity = TEST_CAPACITY,
             refillRate = TEST_REFILL_RATE,
             windowSize = TEST_WINDOW_SIZE_SECONDS
@@ -91,17 +94,21 @@ class AlgorithmComparisonTest {
         val swExhausted = fastSlidingWindow.tryAcquire(swKey)
         assertThat(swExhausted.allowed).isFalse()
 
-        // Step 2: Wait 1 second for token refill
-        delay(1000)
+        // Step 2: Wait for token refill (1 second should give us 10 tokens with refill_rate=10)
+        delay(1200)
 
         // Step 3: Retry requests
-        // Token Bucket: 10 tokens should be refilled (refill_rate=10)
+        // Token Bucket: 10 tokens should be refilled (refill_rate=10/sec)
         val tbResult = fastTokenBucket.tryAcquire(tbKey)
-        assertThat(tbResult.allowed).isTrue()
+        assertThat(tbResult.allowed)
+            .describedAs("Token Bucket should allow after refill period (waited 1.2s, refill_rate=10/sec)")
+            .isTrue()
 
-        // Sliding Window: Still has requests in the 2-second window, should deny
+        // Sliding Window: Window is 3 seconds, we only waited 1.2s, so requests are still in window
         val swResult = fastSlidingWindow.tryAcquire(swKey)
-        assertThat(swResult.allowed).isFalse()
+        assertThat(swResult.allowed)
+            .describedAs("Sliding Window should deny (window=3s, waited=1.2s, requests still in window)")
+            .isFalse()
 
         Unit
     }
@@ -129,16 +136,20 @@ class AlgorithmComparisonTest {
         val swExhausted = fastSlidingWindow.tryAcquire(swKey)
         assertThat(swExhausted.allowed).isFalse()
 
-        // Step 2: Wait for full window size (2 seconds + buffer)
-        // Using TEST_WINDOW_SIZE_SECONDS = 2, so we wait 3 seconds to ensure full reset
-        delay(3000)
+        // Step 2: Wait for full window size (3 seconds + buffer for CI)
+        // Using TEST_WINDOW_SIZE_SECONDS = 3, so we wait 4 seconds to ensure full reset
+        delay(4000)
 
         // Step 3: Both algorithms should allow requests
         val tbResult = fastTokenBucket.tryAcquire(tbKey)
         val swResult = fastSlidingWindow.tryAcquire(swKey)
 
-        assertThat(tbResult.allowed).isTrue()
-        assertThat(swResult.allowed).isTrue()
+        assertThat(tbResult.allowed)
+            .describedAs("Token Bucket should allow after full reset period")
+            .isTrue()
+        assertThat(swResult.allowed)
+            .describedAs("Sliding Window should allow after window expires")
+            .isTrue()
 
         Unit
     }

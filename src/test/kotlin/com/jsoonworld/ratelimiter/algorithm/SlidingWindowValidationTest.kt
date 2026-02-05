@@ -1,6 +1,7 @@
 package com.jsoonworld.ratelimiter.algorithm
 
 import com.jsoonworld.ratelimiter.config.RateLimiterProperties
+import com.jsoonworld.ratelimiter.model.RateLimitAlgorithm
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
@@ -18,7 +19,7 @@ class SlidingWindowValidationTest {
     fun setUp() {
         redisTemplate = mockk()
         val properties = RateLimiterProperties(
-            algorithm = "SLIDING_WINDOW",
+            algorithm = RateLimitAlgorithm.SLIDING_WINDOW_LOG,
             capacity = 100,
             refillRate = 10,
             windowSize = 60
