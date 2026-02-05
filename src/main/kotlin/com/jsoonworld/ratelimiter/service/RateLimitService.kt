@@ -3,6 +3,8 @@ package com.jsoonworld.ratelimiter.service
 import com.jsoonworld.ratelimiter.algorithm.RateLimiter
 import com.jsoonworld.ratelimiter.algorithm.SlidingWindowRateLimiter
 import com.jsoonworld.ratelimiter.algorithm.TokenBucketRateLimiter
+import com.jsoonworld.ratelimiter.config.RateLimiterProperties
+import com.jsoonworld.ratelimiter.exception.UnsupportedAlgorithmException
 import com.jsoonworld.ratelimiter.model.RateLimitAlgorithm
 import com.jsoonworld.ratelimiter.model.RateLimitResult
 import io.micrometer.core.instrument.MeterRegistry
@@ -14,30 +16,75 @@ import org.springframework.stereotype.Service
 class RateLimitService(
     private val tokenBucketRateLimiter: TokenBucketRateLimiter,
     private val slidingWindowRateLimiter: SlidingWindowRateLimiter,
-    private val meterRegistry: MeterRegistry
+    private val meterRegistry: MeterRegistry,
+    private val properties: RateLimiterProperties
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    val defaultAlgorithm: RateLimitAlgorithm
+        get() = properties.algorithm
+
     suspend fun checkRateLimit(
         key: String,
-        algorithm: RateLimitAlgorithm = RateLimitAlgorithm.TOKEN_BUCKET,
+        algorithm: RateLimitAlgorithm? = null,
         permits: Long = 1
     ): RateLimitResult {
+        val effectiveAlgorithm = algorithm ?: defaultAlgorithm
+        logger.debug("Checking rate limit for key: ${maskKey(key)}, algorithm: $effectiveAlgorithm, permits: $permits")
         val timer = Timer.start(meterRegistry)
 
-        val rateLimiter: RateLimiter = when (algorithm) {
-            RateLimitAlgorithm.TOKEN_BUCKET -> tokenBucketRateLimiter
-            RateLimitAlgorithm.SLIDING_WINDOW_LOG -> slidingWindowRateLimiter
-            else -> {
-                logger.warn("Algorithm $algorithm not implemented, falling back to TOKEN_BUCKET")
-                tokenBucketRateLimiter
-            }
-        }
-
+        val rateLimiter: RateLimiter = selectAlgorithm(effectiveAlgorithm)
         val result = rateLimiter.tryAcquire(key, permits)
 
-        // Record metrics
+        recordMetrics(timer, effectiveAlgorithm, result)
+
+        return result
+    }
+
+    suspend fun getRemainingLimit(
+        key: String,
+        algorithm: RateLimitAlgorithm? = null
+    ): Long {
+        val effectiveAlgorithm = algorithm ?: defaultAlgorithm
+        logger.debug("Getting remaining limit for key: ${maskKey(key)}, algorithm: $effectiveAlgorithm")
+        val rateLimiter = selectAlgorithm(effectiveAlgorithm)
+        return rateLimiter.getRemainingLimit(key)
+    }
+
+    suspend fun resetLimit(
+        key: String,
+        algorithm: RateLimitAlgorithm? = null
+    ) {
+        val effectiveAlgorithm = algorithm ?: defaultAlgorithm
+        logger.info("Resetting rate limit for key: ${maskKey(key)}, algorithm: $effectiveAlgorithm")
+        val rateLimiter = selectAlgorithm(effectiveAlgorithm)
+        rateLimiter.reset(key)
+    }
+
+    private fun selectAlgorithm(algorithm: RateLimitAlgorithm): RateLimiter {
+        return when (algorithm) {
+            RateLimitAlgorithm.TOKEN_BUCKET -> tokenBucketRateLimiter
+            RateLimitAlgorithm.SLIDING_WINDOW_LOG -> slidingWindowRateLimiter
+            RateLimitAlgorithm.SLIDING_WINDOW_COUNTER,
+            RateLimitAlgorithm.FIXED_WINDOW,
+            RateLimitAlgorithm.LEAKY_BUCKET -> {
+                throw UnsupportedAlgorithmException(
+                    algorithm = algorithm,
+                    supportedAlgorithms = RateLimitAlgorithm.implementedAlgorithms()
+                )
+            }
+        }
+    }
+
+    private fun maskKey(key: String): String =
+        if (key.length <= 6) "***" else key.take(3) + "***" + key.takeLast(2)
+
+    private fun recordMetrics(
+        timer: Timer.Sample,
+        algorithm: RateLimitAlgorithm,
+        result: RateLimitResult
+    ) {
         timer.stop(
             Timer.builder("rate_limiter.check")
                 .tag("algorithm", algorithm.name)
@@ -50,31 +97,5 @@ class RateLimitService(
             "algorithm", algorithm.name,
             "allowed", result.allowed.toString()
         ).increment()
-
-        return result
-    }
-
-    suspend fun getRemainingLimit(
-        key: String,
-        algorithm: RateLimitAlgorithm = RateLimitAlgorithm.TOKEN_BUCKET
-    ): Long {
-        val rateLimiter: RateLimiter = when (algorithm) {
-            RateLimitAlgorithm.TOKEN_BUCKET -> tokenBucketRateLimiter
-            RateLimitAlgorithm.SLIDING_WINDOW_LOG -> slidingWindowRateLimiter
-            else -> tokenBucketRateLimiter
-        }
-        return rateLimiter.getRemainingLimit(key)
-    }
-
-    suspend fun resetLimit(
-        key: String,
-        algorithm: RateLimitAlgorithm = RateLimitAlgorithm.TOKEN_BUCKET
-    ) {
-        val rateLimiter: RateLimiter = when (algorithm) {
-            RateLimitAlgorithm.TOKEN_BUCKET -> tokenBucketRateLimiter
-            RateLimitAlgorithm.SLIDING_WINDOW_LOG -> slidingWindowRateLimiter
-            else -> tokenBucketRateLimiter
-        }
-        rateLimiter.reset(key)
     }
 }

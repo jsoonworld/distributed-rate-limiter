@@ -1,0 +1,9 @@
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.jsoonworld.ratelimiter: DEBUG
+    org.springframework.security: DEBUG

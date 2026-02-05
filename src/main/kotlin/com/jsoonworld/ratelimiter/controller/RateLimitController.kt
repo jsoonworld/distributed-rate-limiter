@@ -1,70 +1,75 @@
 package com.jsoonworld.ratelimiter.controller
 
+import com.jsoonworld.ratelimiter.config.RateLimiterProperties
 import com.jsoonworld.ratelimiter.model.RateLimitAlgorithm
-import com.jsoonworld.ratelimiter.model.RateLimitResult
 import com.jsoonworld.ratelimiter.service.RateLimitService
-import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/v1/rate-limit")
 class RateLimitController(
-    private val rateLimitService: RateLimitService
+    private val rateLimitService: RateLimitService,
+    private val properties: RateLimiterProperties
 ) {
 
     @GetMapping("/check")
     suspend fun checkRateLimit(
-        @RequestParam(defaultValue = "TOKEN_BUCKET") algorithm: RateLimitAlgorithm,
+        @RequestParam(required = false) algorithm: RateLimitAlgorithm?,
         @RequestParam(required = false) key: String?,
-        request: HttpServletRequest
+        request: ServerHttpRequest
     ): ResponseEntity<RateLimitResponse> {
-        val clientKey = key ?: extractClientKey(request)
-        val result = rateLimitService.checkRateLimit(clientKey, algorithm)
+        val clientKey = if (key.isNullOrBlank()) extractClientKey(request) else key
+        val effectiveAlgorithm = algorithm ?: rateLimitService.defaultAlgorithm
+        val result = rateLimitService.checkRateLimit(clientKey, effectiveAlgorithm)
 
         return if (result.allowed) {
             ResponseEntity.ok()
-                .headers { headers ->
-                    headers.set("X-RateLimit-Remaining", result.remainingTokens.toString())
-                    headers.set("X-RateLimit-Reset", result.resetTimeSeconds.toString())
-                }
-                .body(RateLimitResponse.fromResult(result, clientKey))
+                .header("X-RateLimit-Remaining", result.remainingTokens.toString())
+                .header("X-RateLimit-Reset", result.resetTimeSeconds.toString())
+                .body(RateLimitResponse.fromResult(result, clientKey, effectiveAlgorithm))
         } else {
             ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .headers { headers ->
-                    headers.set("X-RateLimit-Remaining", "0")
-                    headers.set("X-RateLimit-Reset", result.resetTimeSeconds.toString())
-                    headers.set("Retry-After", result.retryAfterSeconds.toString())
+                .header("X-RateLimit-Remaining", "0")
+                .header("X-RateLimit-Reset", result.resetTimeSeconds.toString())
+                .apply {
+                    result.retryAfterSeconds?.let { retryAfter ->
+                        header("Retry-After", retryAfter.toString())
+                    }
                 }
-                .body(RateLimitResponse.fromResult(result, clientKey))
+                .body(RateLimitResponse.fromResult(result, clientKey, effectiveAlgorithm))
         }
     }
 
     @GetMapping("/remaining")
     suspend fun getRemainingLimit(
-        @RequestParam(defaultValue = "TOKEN_BUCKET") algorithm: RateLimitAlgorithm,
+        @RequestParam(required = false) algorithm: RateLimitAlgorithm?,
         @RequestParam(required = false) key: String?,
-        request: HttpServletRequest
+        request: ServerHttpRequest
     ): ResponseEntity<Map<String, Any>> {
-        val clientKey = key ?: extractClientKey(request)
-        val remaining = rateLimitService.getRemainingLimit(clientKey, algorithm)
+        val clientKey = if (key.isNullOrBlank()) extractClientKey(request) else key
+        val effectiveAlgorithm = algorithm ?: rateLimitService.defaultAlgorithm
+        val remaining = rateLimitService.getRemainingLimit(clientKey, effectiveAlgorithm)
 
         return ResponseEntity.ok(
             mapOf(
                 "key" to clientKey,
                 "remaining" to remaining,
-                "algorithm" to algorithm.name
+                "algorithm" to effectiveAlgorithm.name
             )
         )
     }
 
     @DeleteMapping("/reset")
     suspend fun resetRateLimit(
-        @RequestParam(defaultValue = "TOKEN_BUCKET") algorithm: RateLimitAlgorithm,
+        @RequestParam(required = false) algorithm: RateLimitAlgorithm?,
         @RequestParam key: String
     ): ResponseEntity<Map<String, String>> {
-        rateLimitService.resetLimit(key, algorithm)
+        val effectiveAlgorithm = algorithm ?: rateLimitService.defaultAlgorithm
+        rateLimitService.resetLimit(key, effectiveAlgorithm)
+
         return ResponseEntity.ok(
             mapOf(
                 "status" to "reset",
@@ -73,39 +78,23 @@ class RateLimitController(
         )
     }
 
-    private fun extractClientKey(request: HttpServletRequest): String {
-        // X-Forwarded-For 헤더 확인 (프록시/로드밸런서 환경)
-        val forwardedFor = request.getHeader("X-Forwarded-For")
-        if (!forwardedFor.isNullOrBlank()) {
-            return forwardedFor.split(",").first().trim()
+    private fun extractClientKey(request: ServerHttpRequest): String {
+        // Only trust proxy headers when explicitly configured
+        if (properties.trustProxy) {
+            // 1. X-Forwarded-For header (first IP)
+            val forwardedFor = request.headers.getFirst("X-Forwarded-For")
+            if (!forwardedFor.isNullOrBlank()) {
+                return forwardedFor.split(",").first().trim()
+            }
+
+            // 2. X-Real-IP header
+            val realIp = request.headers.getFirst("X-Real-IP")
+            if (!realIp.isNullOrBlank()) {
+                return realIp
+            }
         }
 
-        // X-Real-IP 헤더 확인
-        val realIp = request.getHeader("X-Real-IP")
-        if (!realIp.isNullOrBlank()) {
-            return realIp
-        }
-
-        return request.remoteAddr ?: "unknown"
-    }
-}
-
-data class RateLimitResponse(
-    val allowed: Boolean,
-    val key: String,
-    val remainingTokens: Long,
-    val resetTimeSeconds: Long,
-    val retryAfterSeconds: Long?,
-    val message: String
-) {
-    companion object {
-        fun fromResult(result: RateLimitResult, key: String) = RateLimitResponse(
-            allowed = result.allowed,
-            key = key,
-            remainingTokens = result.remainingTokens,
-            resetTimeSeconds = result.resetTimeSeconds,
-            retryAfterSeconds = result.retryAfterSeconds,
-            message = if (result.allowed) "Request allowed" else "Rate limit exceeded"
-        )
+        // 3. Remote Address (always used when trustProxy is false)
+        return request.remoteAddress?.address?.hostAddress ?: "unknown"
     }
 }
