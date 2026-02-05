@@ -157,8 +157,8 @@ class SlidingWindowRateLimiter(
             local reset_time = window_size
             if allowed == 0 then
                 -- Need to wait for 'requested' permits to become available
-                -- The Nth oldest entry (index: requested - 1) will free up the Nth permit
-                local entries_needed = current_count - (max_requests - requested) + 1
+                -- The Nth oldest entry (index: entries_needed - 1) will free up the Nth permit
+                local entries_needed = current_count + requested - max_requests
                 if entries_needed > 0 then
                     local nth_oldest = redis.call('ZRANGE', key, entries_needed - 1, entries_needed - 1, 'WITHSCORES')
                     if nth_oldest[2] then
