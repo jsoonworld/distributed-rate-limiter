@@ -3,9 +3,9 @@ package com.jsoonworld.ratelimiter.controller
 import com.jsoonworld.ratelimiter.model.RateLimitAlgorithm
 import com.jsoonworld.ratelimiter.model.RateLimitResult
 import com.jsoonworld.ratelimiter.service.RateLimitService
-import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.bind.annotation.*
 
 @RestController
@@ -18,7 +18,7 @@ class RateLimitController(
     suspend fun checkRateLimit(
         @RequestParam(defaultValue = "TOKEN_BUCKET") algorithm: RateLimitAlgorithm,
         @RequestParam(required = false) key: String?,
-        request: HttpServletRequest
+        request: ServerHttpRequest
     ): ResponseEntity<RateLimitResponse> {
         val clientKey = key ?: extractClientKey(request)
         val result = rateLimitService.checkRateLimit(clientKey, algorithm)
@@ -45,7 +45,7 @@ class RateLimitController(
     suspend fun getRemainingLimit(
         @RequestParam(defaultValue = "TOKEN_BUCKET") algorithm: RateLimitAlgorithm,
         @RequestParam(required = false) key: String?,
-        request: HttpServletRequest
+        request: ServerHttpRequest
     ): ResponseEntity<Map<String, Any>> {
         val clientKey = key ?: extractClientKey(request)
         val remaining = rateLimitService.getRemainingLimit(clientKey, algorithm)
@@ -73,20 +73,22 @@ class RateLimitController(
         )
     }
 
-    private fun extractClientKey(request: HttpServletRequest): String {
-        // X-Forwarded-For 헤더 확인 (프록시/로드밸런서 환경)
-        val forwardedFor = request.getHeader("X-Forwarded-For")
+    private fun extractClientKey(request: ServerHttpRequest): String {
+        val headers = request.headers
+
+        // X-Forwarded-For header (proxy/load balancer environment)
+        val forwardedFor = headers.getFirst("X-Forwarded-For")
         if (!forwardedFor.isNullOrBlank()) {
             return forwardedFor.split(",").first().trim()
         }
 
-        // X-Real-IP 헤더 확인
-        val realIp = request.getHeader("X-Real-IP")
+        // X-Real-IP header
+        val realIp = headers.getFirst("X-Real-IP")
         if (!realIp.isNullOrBlank()) {
             return realIp
         }
 
-        return request.remoteAddr ?: "unknown"
+        return request.remoteAddress?.address?.hostAddress ?: "unknown"
     }
 }
 

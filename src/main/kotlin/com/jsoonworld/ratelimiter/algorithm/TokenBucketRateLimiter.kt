@@ -69,12 +69,13 @@ class TokenBucketRateLimiter(
         """.trimIndent()
     }
 
+    @Suppress("UNCHECKED_CAST")
     override suspend fun tryAcquire(key: String, permits: Long): RateLimitResult {
         val redisKey = "$KEY_PREFIX$key"
         val now = System.currentTimeMillis() / 1000.0
 
         return try {
-            val script = RedisScript.of<List<Long>>(TOKEN_BUCKET_SCRIPT, List::class.java as Class<List<Long>>)
+            val script = RedisScript.of(TOKEN_BUCKET_SCRIPT, List::class.java as Class<List<Long>>)
 
             val result = redisTemplate.execute(
                 script,

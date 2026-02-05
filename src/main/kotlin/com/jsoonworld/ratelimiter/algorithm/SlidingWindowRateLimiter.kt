@@ -2,6 +2,7 @@ package com.jsoonworld.ratelimiter.algorithm
 
 import com.jsoonworld.ratelimiter.model.RateLimitResult
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.Range
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.script.RedisScript
 import org.springframework.stereotype.Component
@@ -69,12 +70,13 @@ class SlidingWindowRateLimiter(
         """.trimIndent()
     }
 
+    @Suppress("UNCHECKED_CAST")
     override suspend fun tryAcquire(key: String, permits: Long): RateLimitResult {
         val redisKey = "$KEY_PREFIX$key"
         val now = System.currentTimeMillis() / 1000.0
 
         return try {
-            val script = RedisScript.of<List<Long>>(SLIDING_WINDOW_SCRIPT, List::class.java as Class<List<Long>>)
+            val script = RedisScript.of(SLIDING_WINDOW_SCRIPT, List::class.java as Class<List<Long>>)
 
             val result = redisTemplate.execute(
                 script,
@@ -114,7 +116,7 @@ class SlidingWindowRateLimiter(
         return try {
             // Remove expired and count
             redisTemplate.opsForZSet()
-                .removeRangeByScore(redisKey, Double.NEGATIVE_INFINITY, windowStart)
+                .removeRangeByScore(redisKey, Range.closed(Double.NEGATIVE_INFINITY, windowStart))
                 .awaitSingleOrNull()
 
             val count = redisTemplate.opsForZSet()
