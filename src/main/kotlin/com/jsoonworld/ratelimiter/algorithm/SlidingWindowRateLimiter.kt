@@ -11,23 +11,25 @@ import org.springframework.data.redis.RedisConnectionFailureException
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.script.RedisScript
 
-class TokenBucketRateLimiter(
+class SlidingWindowRateLimiter(
     private val redisTemplate: ReactiveStringRedisTemplate,
     private val properties: RateLimiterProperties
 ) : RateLimiter {
 
+    private val maxRequests: Long = properties.capacity
+    private val windowSizeSeconds: Long = properties.windowSize
     private val logger = LoggerFactory.getLogger(javaClass)
 
     override suspend fun tryAcquire(key: String, permits: Long): RateLimitResult {
         require(permits > 0) { "permits must be positive, got: $permits" }
-        require(permits <= properties.capacity) { "permits cannot exceed capacity (${properties.capacity}), got: $permits" }
+        require(permits <= maxRequests) { "permits cannot exceed maxRequests ($maxRequests), got: $permits" }
 
         val redisKey = "$KEY_PREFIX$key"
         val now = System.currentTimeMillis() / 1000.0
 
         return try {
             val script = RedisScript.of<List<*>>(
-                TOKEN_BUCKET_SCRIPT,
+                SLIDING_WINDOW_SCRIPT,
                 List::class.java
             )
 
@@ -35,8 +37,8 @@ class TokenBucketRateLimiter(
                 script,
                 listOf(redisKey),
                 listOf(
-                    properties.capacity.toString(),
-                    properties.refillRate.toString(),
+                    windowSizeSeconds.toString(),
+                    maxRequests.toString(),
                     now.toString(),
                     permits.toString()
                 )
@@ -47,21 +49,20 @@ class TokenBucketRateLimiter(
             val allowed = flatResult[0] == 1L
             val remaining = flatResult[1]
             val resetTime = flatResult[2]
-            val retryAfter = flatResult[3]
 
             if (allowed) {
                 logger.debug("Request allowed for key: $key, remaining: $remaining")
                 RateLimitResult.allowed(remaining, resetTime)
             } else {
-                logger.debug("Request denied for key: $key, retry after: $retryAfter seconds")
-                RateLimitResult.denied(resetTime, retryAfter)
+                logger.debug("Request denied for key: $key, retry after: $resetTime seconds")
+                RateLimitResult.denied(resetTime, resetTime)
             }
         } catch (e: RedisConnectionFailureException) {
             logger.warn("Redis connection failed for key: $key, applying fail-open policy", e)
-            RateLimitResult.allowed(properties.capacity, 0)
+            RateLimitResult.allowed(maxRequests, 0)
         } catch (e: RedisException) {
             logger.warn("Redis error for key: $key, applying fail-open policy", e)
-            RateLimitResult.allowed(properties.capacity, 0)
+            RateLimitResult.allowed(maxRequests, 0)
         } catch (e: Exception) {
             logger.error("Unexpected error executing rate limit check for key: $key", e)
             throw RateLimitException("Rate limit check failed", e)
@@ -71,19 +72,30 @@ class TokenBucketRateLimiter(
     override suspend fun getRemainingLimit(key: String): Long {
         val redisKey = "$KEY_PREFIX$key"
         val now = System.currentTimeMillis() / 1000.0
+
         return try {
-            val script = RedisScript.of(GET_REMAINING_SCRIPT, Long::class.java)
-            redisTemplate.execute(
+            val script = RedisScript.of<Long>(
+                GET_REMAINING_SCRIPT,
+                Long::class.java
+            )
+
+            val result = redisTemplate.execute(
                 script,
                 listOf(redisKey),
-                listOf(properties.capacity.toString(), properties.refillRate.toString(), now.toString())
-            ).next().awaitSingleOrNull() ?: properties.capacity
+                listOf(
+                    windowSizeSeconds.toString(),
+                    maxRequests.toString(),
+                    now.toString()
+                )
+            ).collectList().awaitSingle()
+
+            result.firstOrNull() ?: maxRequests
         } catch (e: RedisConnectionFailureException) {
             logger.warn("Redis connection failed for key: $key, applying fail-open policy", e)
-            properties.capacity
+            maxRequests
         } catch (e: RedisException) {
             logger.warn("Redis error for key: $key, applying fail-open policy", e)
-            properties.capacity
+            maxRequests
         } catch (e: Exception) {
             logger.error("Unexpected error getting remaining limit for key: $key", e)
             throw RateLimitException("Failed to get remaining limit", e)
@@ -106,69 +118,79 @@ class TokenBucketRateLimiter(
     }
 
     companion object {
-        private const val KEY_PREFIX = "rate_limiter:token_bucket:"
+        private const val KEY_PREFIX = "rate_limiter:sliding_window:"
+        private const val DEFAULT_WINDOW_SIZE = 60L
+        private const val DEFAULT_MAX_REQUESTS = 100L
 
-        private val TOKEN_BUCKET_SCRIPT = """
+        private val SLIDING_WINDOW_SCRIPT = """
             local key = KEYS[1]
-            local capacity = tonumber(ARGV[1])
-            local refill_rate = tonumber(ARGV[2])
+            local window_size = tonumber(ARGV[1])
+            local max_requests = tonumber(ARGV[2])
             local now = tonumber(ARGV[3])
             local requested = tonumber(ARGV[4])
 
-            local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
-            local tokens = tonumber(bucket[1])
-            local last_refill = tonumber(bucket[2])
+            -- Remove expired entries
+            local window_start = now - window_size
+            redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
 
-            if tokens == nil then
-                tokens = capacity
-                last_refill = now
-            end
-
-            local time_passed = now - last_refill
-            local tokens_to_add = time_passed * refill_rate
-            tokens = math.min(capacity, tokens + tokens_to_add)
+            -- Count current requests in window
+            local current_count = redis.call('ZCARD', key)
 
             local allowed = 0
-            local remaining = tokens
-            local retry_after = 0
-            local reset_time = math.ceil((capacity - tokens) / refill_rate)
+            local remaining = max_requests - current_count
 
-            if tokens >= requested then
-                tokens = tokens - requested
+            if current_count + requested <= max_requests then
+                -- Add new requests
+                for i = 1, requested do
+                    redis.call('ZADD', key, now, now .. ':' .. i .. ':' .. math.random())
+                end
                 allowed = 1
-                remaining = tokens
-                reset_time = math.ceil((capacity - remaining) / refill_rate)
-            else
-                -- Calculate time until we have enough tokens for this request
-                local tokens_needed = requested - tokens
-                retry_after = math.ceil(tokens_needed / refill_rate)
+                remaining = max_requests - current_count - requested
             end
 
-            redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
-            redis.call('EXPIRE', key, math.ceil(capacity / refill_rate) + 1)
+            -- Set TTL
+            redis.call('EXPIRE', key, window_size + 1)
 
-            return {allowed, math.floor(remaining), reset_time, retry_after}
+            -- Calculate reset time (retry after)
+            -- For denied requests, we need to find when N permits will be available
+            -- This is when the Nth oldest entry expires (0-indexed: requested - 1)
+            local reset_time = window_size
+            if allowed == 0 then
+                -- Need to wait for 'requested' permits to become available
+                -- The Nth oldest entry (index: requested - 1) will free up the Nth permit
+                local entries_needed = current_count - (max_requests - requested) + 1
+                if entries_needed > 0 then
+                    local nth_oldest = redis.call('ZRANGE', key, entries_needed - 1, entries_needed - 1, 'WITHSCORES')
+                    if nth_oldest[2] then
+                        reset_time = math.ceil(tonumber(nth_oldest[2]) + window_size - now)
+                    end
+                end
+            else
+                -- For allowed requests, reset time is when the oldest entry expires
+                local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+                if oldest[2] then
+                    reset_time = math.ceil(tonumber(oldest[2]) + window_size - now)
+                end
+            end
+
+            return {allowed, math.max(0, remaining), math.max(0, reset_time)}
         """.trimIndent()
 
         private val GET_REMAINING_SCRIPT = """
             local key = KEYS[1]
-            local capacity = tonumber(ARGV[1])
-            local refill_rate = tonumber(ARGV[2])
+            local window_size = tonumber(ARGV[1])
+            local max_requests = tonumber(ARGV[2])
             local now = tonumber(ARGV[3])
 
-            local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
-            local tokens = tonumber(bucket[1])
-            local last_refill = tonumber(bucket[2])
+            -- Remove expired entries atomically
+            local window_start = now - window_size
+            redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
 
-            if tokens == nil then
-                return capacity
-            end
+            -- Count current requests in window
+            local current_count = redis.call('ZCARD', key)
 
-            local time_passed = math.max(0, now - last_refill)
-            local tokens_to_add = time_passed * refill_rate
-            tokens = math.min(capacity, tokens + tokens_to_add)
-
-            return math.floor(tokens)
+            -- Return remaining with max(0, ...) clamping to prevent negative values
+            return math.max(0, max_requests - current_count)
         """.trimIndent()
     }
 }
