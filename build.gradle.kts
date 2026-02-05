@@ -42,6 +42,7 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.9")
     testImplementation("org.testcontainers:testcontainers:1.19.3")
     testImplementation("org.testcontainers:junit-jupiter:1.19.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
 }
 
 tasks.withType<KotlinCompile> {

@@ -35,8 +35,9 @@ class RedisConfigTest {
 
     @Test
     fun `should connect to Redis`(): Unit = runBlocking {
+        val key = "test:connect:${System.currentTimeMillis()}"
         val result = redisTemplate.opsForValue()
-            .set("test:key", "value")
+            .set(key, "value")
             .awaitSingle()
         assertThat(result).isTrue()
     }

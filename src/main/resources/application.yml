@@ -27,7 +27,7 @@ management:
         include: health, info, prometheus, metrics
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: always
   metrics:
     tags:
       application: ${spring.application.name}
