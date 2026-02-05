@@ -6,10 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.MethodOrderer
-import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestMethodOrder
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
@@ -22,7 +19,6 @@ import java.util.UUID
 
 @SpringBootTest
 @Testcontainers
-@TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 class SlidingWindowRateLimiterTest {
 
     companion object {
@@ -56,7 +52,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(1)
     fun `should allow request within window limit`(): Unit = runBlocking {
         // Given
         val key = "sliding-window-test-${UUID.randomUUID()}"
@@ -71,7 +66,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(2)
     fun `should deny request when window limit exceeded`(): Unit = runBlocking {
         // Given
         val key = "sliding-window-deny-${UUID.randomUUID()}"
@@ -92,7 +86,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(3)
     fun `should correctly calculate remaining`(): Unit = runBlocking {
         // Given
         val key = "sliding-window-remaining-${UUID.randomUUID()}"
@@ -111,7 +104,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(4)
     fun `should reset rate limit`(): Unit = runBlocking {
         // Given
         val key = "sliding-window-reset-${UUID.randomUUID()}"
@@ -136,7 +128,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(5)
     fun `should handle multiple permits`(): Unit = runBlocking {
         // Given
         val key = "sliding-window-multi-permit-${UUID.randomUUID()}"
@@ -155,7 +146,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(6)
     fun `should allow requests after window expires`(): Unit = runBlocking {
         // Given - create a rate limiter with a very short window (2 seconds)
         val shortWindowProperties = RateLimiterProperties(
@@ -187,7 +177,6 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
-    @Order(7)
     fun `should gradually allow more requests as old ones expire from window`(): Unit = runBlocking {
         // Given - create a rate limiter with a very short window (2 seconds)
         val shortWindowProperties = RateLimiterProperties(

@@ -43,9 +43,9 @@ echo "📊 Generating coverage report..."
 # 3. Check coverage threshold
 COVERAGE_FILE="build/reports/jacoco/test/jacocoTestReport.xml"
 if [ -f "$COVERAGE_FILE" ]; then
-    # Extract line coverage from JaCoCo XML
-    MISSED=$(grep -oP 'type="LINE"[^/]*missed="\K[0-9]+' "$COVERAGE_FILE" | head -1 || echo "0")
-    COVERED=$(grep -oP 'type="LINE"[^/]*covered="\K[0-9]+' "$COVERAGE_FILE" | head -1 || echo "0")
+    # Extract line coverage from JaCoCo XML (POSIX-compatible, works on macOS and Linux)
+    MISSED=$(grep 'type="LINE"' "$COVERAGE_FILE" | head -1 | sed -E 's/.*missed="([0-9]+)".*/\1/' || echo "0")
+    COVERED=$(grep 'type="LINE"' "$COVERAGE_FILE" | head -1 | sed -E 's/.*covered="([0-9]+)".*/\1/' || echo "0")
 
     if [ "$MISSED" != "0" ] || [ "$COVERED" != "0" ]; then
         TOTAL=$((MISSED + COVERED))

@@ -2,6 +2,11 @@ spring:
   application:
     name: distributed-rate-limiter
 
+  security:
+    user:
+      name: ${ACTUATOR_USER:admin}
+      password: ${ACTUATOR_PASSWORD:admin}
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}

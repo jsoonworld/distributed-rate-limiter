@@ -90,7 +90,7 @@
 
 - **요청**: REST API 또는 라이브러리 직접 호출
 - **응답**: 허용 여부, 남은 한도, 재시도 시간
-- **모니터링**: `/actuator/prometheus` 엔드포인트
+- **모니터링**: `/actuator/prometheus` 엔드포인트 (Basic Auth 필요)
 
 ### API 예시
 

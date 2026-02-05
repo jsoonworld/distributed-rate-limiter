@@ -206,8 +206,11 @@ class TokenBucketIntegrationTest {
         // Immediately try to acquire more - should be denied
         val result = rateLimiter.tryAcquire(key, permits = 10)
 
-        // Due to refill timing, check for either denied or very low remaining
-        if (!result.allowed) {
+        // Due to refill timing, check for either denied or allowed with valid values
+        if (result.allowed) {
+            assertThat(result.remainingTokens).isGreaterThanOrEqualTo(0)
+            assertThat(result.remainingTokens).isLessThanOrEqualTo(100)
+        } else {
             assertThat(result.retryAfterSeconds).isNotNull()
         }
         Unit

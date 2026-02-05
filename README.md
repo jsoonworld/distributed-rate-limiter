@@ -96,11 +96,11 @@ rate-limiter:
 ## Monitoring
 
 ```bash
-# Health check
+# Health check (public)
 curl http://localhost:8080/actuator/health
 
-# Prometheus metrics
-curl http://localhost:8080/actuator/prometheus
+# Prometheus metrics (requires Basic Auth)
+curl -u ${ACTUATOR_USER}:${ACTUATOR_PASSWORD} http://localhost:8080/actuator/prometheus
 ```
 
 **Key Metrics:**

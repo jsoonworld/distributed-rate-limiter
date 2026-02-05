@@ -18,6 +18,11 @@ class TokenBucketRateLimiter(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    init {
+        require(properties.capacity > 0) { "capacity must be positive, got: ${properties.capacity}" }
+        require(properties.refillRate > 0) { "refillRate must be positive, got: ${properties.refillRate}" }
+    }
+
     override suspend fun tryAcquire(key: String, permits: Long): RateLimitResult {
         require(permits > 0) { "permits must be positive, got: $permits" }
         require(permits <= properties.capacity) { "permits cannot exceed capacity (${properties.capacity}), got: $permits" }

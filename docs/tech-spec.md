@@ -62,7 +62,7 @@ Distributed Rate Limiter는 **분산 환경에서 일관된 요청 제한을 제
 
 ### 2.1 Layer Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                    Controller Layer                      │
 │  RateLimitController: REST API 엔드포인트               │
@@ -100,7 +100,7 @@ Distributed Rate Limiter는 **분산 환경에서 일관된 요청 제한을 제
 
 ### 2.2 Package Structure
 
-```
+```text
 com.jsoonworld.ratelimiter
 ├── algorithm/           # Rate Limiting 알고리즘 구현체
 │   ├── RateLimiter.kt          # 인터페이스
@@ -193,7 +193,7 @@ return {allowed, math.floor(remaining), math.ceil((capacity - remaining) / refil
 ```
 
 **Redis Data Structure**:
-```
+```text
 Key: rate_limiter:token_bucket:{client_key}
 Type: Hash
 Fields:
@@ -249,11 +249,18 @@ end
 -- Set expiration
 redis.call('EXPIRE', key, window_size + 1)
 
-return {allowed, math.max(0, remaining), reset_time}
+-- Calculate reset time based on oldest entry in the window
+local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+local reset_time = window_size
+if oldest and oldest[2] then
+    reset_time = math.ceil(tonumber(oldest[2]) + window_size - now)
+end
+
+return {allowed, math.max(0, remaining), math.max(0, reset_time)}
 ```
 
 **Redis Data Structure**:
-```
+```text
 Key: rate_limiter:sliding_window:{client_key}
 Type: Sorted Set
 Score: 요청 타임스탬프
@@ -277,12 +284,12 @@ TTL: window_size + 1 seconds
 
 ### 4.1 Redis Key Naming Convention
 
-```
+```text
 rate_limiter:{algorithm}:{client_key}
 ```
 
 **Examples**:
-```
+```text
 rate_limiter:token_bucket:user:12345
 rate_limiter:token_bucket:ip:192.168.1.1
 rate_limiter:sliding_window:api_key:abc123
@@ -402,7 +409,7 @@ try {
 
 Lua Script를 사용하여 Race Condition 방지:
 
-```
+```text
 문제: 분산 환경에서 동시 요청 시 한도 초과
 해결: Redis Lua Script로 읽기-계산-쓰기를 원자적으로 처리
 ```

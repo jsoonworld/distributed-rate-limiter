@@ -20,6 +20,11 @@ class SlidingWindowRateLimiter(
     private val windowSizeSeconds: Long = properties.windowSize
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    init {
+        require(properties.capacity > 0) { "capacity must be positive, got: ${properties.capacity}" }
+        require(properties.windowSize > 0) { "windowSize must be positive, got: ${properties.windowSize}" }
+    }
+
     override suspend fun tryAcquire(key: String, permits: Long): RateLimitResult {
         require(permits > 0) { "permits must be positive, got: $permits" }
         require(permits <= maxRequests) { "permits cannot exceed maxRequests ($maxRequests), got: $permits" }
