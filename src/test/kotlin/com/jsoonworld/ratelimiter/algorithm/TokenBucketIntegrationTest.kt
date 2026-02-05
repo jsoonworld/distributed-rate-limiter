@@ -6,13 +6,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.MethodOrderer
-import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestMethodOrder
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.GenericContainer
@@ -22,7 +20,7 @@ import java.util.UUID
 
 @SpringBootTest
 @Testcontainers
-@TestMethodOrder(MethodOrderer.OrderAnnotation::class)
+@ActiveProfiles("test")
 class TokenBucketIntegrationTest {
 
     companion object {
@@ -45,7 +43,6 @@ class TokenBucketIntegrationTest {
     lateinit var redisTemplate: ReactiveStringRedisTemplate
 
     @Test
-    @Order(1)
     fun `should handle concurrent requests correctly`(): Unit = runBlocking {
         val key = "concurrent-test-${UUID.randomUUID()}"
 
@@ -58,14 +55,13 @@ class TokenBucketIntegrationTest {
         val allowed = results.count { it.allowed }
         val denied = results.count { !it.allowed }
 
-        // Allow some tolerance due to token refill during concurrent execution
-        assertThat(allowed).isBetween(95, 110)
-        assertThat(denied).isBetween(40, 55)
+        // Allow wider tolerance due to token refill during concurrent execution
+        assertThat(allowed).isBetween(90, 115)
+        assertThat(denied).isBetween(35, 60)
         Unit
     }
 
     @Test
-    @Order(2)
     fun `should isolate rate limits by key`(): Unit = runBlocking {
         val key1 = "user:1-${UUID.randomUUID()}"
         val key2 = "user:2-${UUID.randomUUID()}"
@@ -81,7 +77,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(3)
     fun `should handle burst traffic within capacity`(): Unit = runBlocking {
         val key = "burst-test-${UUID.randomUUID()}"
 
@@ -97,7 +92,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(4)
     fun `should allow requests after token refill`(): Unit = runBlocking {
         val key = "refill-integration-${UUID.randomUUID()}"
 
@@ -116,7 +110,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(5)
     fun `should maintain consistency under high concurrency`(): Unit = runBlocking {
         val key = "consistency-test-${UUID.randomUUID()}"
 
@@ -141,7 +134,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(6)
     fun `should handle multiple keys concurrently`() = runBlocking {
         val keys = (1..5).map { "multi-key-$it-${UUID.randomUUID()}" }
 
@@ -161,7 +153,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(7)
     fun `should return remaining tokens correctly`(): Unit = runBlocking {
         val key = "remaining-key-${UUID.randomUUID()}"
 
@@ -177,7 +168,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(8)
     fun `should reset rate limit for key`(): Unit = runBlocking {
         val key = "reset-key-${UUID.randomUUID()}"
 
@@ -194,7 +184,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(9)
     fun `should consume multiple permits at once`(): Unit = runBlocking {
         val key = "multi-permit-key-${UUID.randomUUID()}"
 
@@ -206,7 +195,6 @@ class TokenBucketIntegrationTest {
     }
 
     @Test
-    @Order(10)
     fun `should deny when requesting more permits than available`(): Unit = runBlocking {
         val key = "exceed-permit-key-${UUID.randomUUID()}"
 

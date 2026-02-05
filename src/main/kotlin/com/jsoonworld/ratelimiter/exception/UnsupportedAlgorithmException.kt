@@ -6,5 +6,5 @@ class UnsupportedAlgorithmException(
     val algorithm: RateLimitAlgorithm,
     val supportedAlgorithms: List<RateLimitAlgorithm>
 ) : RuntimeException(
-    "Algorithm '${algorithm.name}' is not implemented. Supported algorithms: ${supportedAlgorithms.map { it.name }}"
+    "Algorithm '${algorithm.name}' is not implemented. Supported algorithms: ${supportedAlgorithms.joinToString { it.name }}"
 )

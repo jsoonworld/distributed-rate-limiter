@@ -31,7 +31,7 @@ class RateLimitService(
         permits: Long = 1
     ): RateLimitResult {
         val effectiveAlgorithm = algorithm ?: defaultAlgorithm
-        logger.debug("Checking rate limit for key: $key, algorithm: $effectiveAlgorithm, permits: $permits")
+        logger.debug("Checking rate limit for key: ${maskKey(key)}, algorithm: $effectiveAlgorithm, permits: $permits")
         val timer = Timer.start(meterRegistry)
 
         val rateLimiter: RateLimiter = selectAlgorithm(effectiveAlgorithm)
@@ -47,7 +47,7 @@ class RateLimitService(
         algorithm: RateLimitAlgorithm? = null
     ): Long {
         val effectiveAlgorithm = algorithm ?: defaultAlgorithm
-        logger.debug("Getting remaining limit for key: $key, algorithm: $effectiveAlgorithm")
+        logger.debug("Getting remaining limit for key: ${maskKey(key)}, algorithm: $effectiveAlgorithm")
         val rateLimiter = selectAlgorithm(effectiveAlgorithm)
         return rateLimiter.getRemainingLimit(key)
     }
@@ -57,7 +57,7 @@ class RateLimitService(
         algorithm: RateLimitAlgorithm? = null
     ) {
         val effectiveAlgorithm = algorithm ?: defaultAlgorithm
-        logger.info("Resetting rate limit for key: $key, algorithm: $effectiveAlgorithm")
+        logger.info("Resetting rate limit for key: ${maskKey(key)}, algorithm: $effectiveAlgorithm")
         val rateLimiter = selectAlgorithm(effectiveAlgorithm)
         rateLimiter.reset(key)
     }
@@ -76,6 +76,9 @@ class RateLimitService(
             }
         }
     }
+
+    private fun maskKey(key: String): String =
+        if (key.length <= 6) "***" else key.take(3) + "***" + key.takeLast(2)
 
     private fun recordMetrics(
         timer: Timer.Sample,

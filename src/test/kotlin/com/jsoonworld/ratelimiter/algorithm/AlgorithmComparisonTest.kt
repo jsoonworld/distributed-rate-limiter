@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.GenericContainer
@@ -19,6 +20,7 @@ import java.util.UUID
 
 @SpringBootTest
 @Testcontainers
+@ActiveProfiles("test")
 class AlgorithmComparisonTest {
 
     companion object {
@@ -78,12 +80,12 @@ class AlgorithmComparisonTest {
         val swKey = "sw-burst-test-${UUID.randomUUID()}"
 
         // Step 1: Exhaust requests from both algorithms using fast instances
-        // Exhaust Sliding Window (TEST_MAX_REQUESTS = 10 requests)
+        // Exhaust Sliding Window (TEST_MAX_REQUESTS = 5 requests)
         repeat(TEST_MAX_REQUESTS.toInt()) {
             fastSlidingWindow.tryAcquire(swKey)
         }
 
-        // For Token Bucket with small capacity (TEST_CAPACITY = 10), exhaust quickly
+        // For Token Bucket with small capacity (TEST_CAPACITY = 5), exhaust quickly
         repeat(TEST_CAPACITY.toInt()) {
             fastTokenBucket.tryAcquire(tbKey)
         }
@@ -119,13 +121,13 @@ class AlgorithmComparisonTest {
         val tbKey = "tb-reset-test-${UUID.randomUUID()}"
         val swKey = "sw-reset-test-${UUID.randomUUID()}"
 
-        // Step 1: Exhaust all requests using fast instances with short window (2 seconds)
-        // Exhaust Sliding Window (TEST_MAX_REQUESTS = 10 requests)
+        // Step 1: Exhaust all requests using fast instances with short window (3 seconds)
+        // Exhaust Sliding Window (TEST_MAX_REQUESTS = 5 requests)
         repeat(TEST_MAX_REQUESTS.toInt()) {
             fastSlidingWindow.tryAcquire(swKey)
         }
 
-        // For Token Bucket with small capacity (TEST_CAPACITY = 10), exhaust quickly
+        // For Token Bucket with small capacity (TEST_CAPACITY = 5), exhaust quickly
         repeat(TEST_CAPACITY.toInt()) {
             fastTokenBucket.tryAcquire(tbKey)
         }

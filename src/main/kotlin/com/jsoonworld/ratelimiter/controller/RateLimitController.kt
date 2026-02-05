@@ -21,7 +21,7 @@ class RateLimitController(
         @RequestParam(required = false) key: String?,
         request: ServerHttpRequest
     ): ResponseEntity<RateLimitResponse> {
-        val clientKey = key ?: extractClientKey(request)
+        val clientKey = if (key.isNullOrBlank()) extractClientKey(request) else key
         val effectiveAlgorithm = algorithm ?: rateLimitService.defaultAlgorithm
         val result = rateLimitService.checkRateLimit(clientKey, effectiveAlgorithm)
 
@@ -49,7 +49,7 @@ class RateLimitController(
         @RequestParam(required = false) key: String?,
         request: ServerHttpRequest
     ): ResponseEntity<Map<String, Any>> {
-        val clientKey = key ?: extractClientKey(request)
+        val clientKey = if (key.isNullOrBlank()) extractClientKey(request) else key
         val effectiveAlgorithm = algorithm ?: rateLimitService.defaultAlgorithm
         val remaining = rateLimitService.getRemainingLimit(clientKey, effectiveAlgorithm)
 

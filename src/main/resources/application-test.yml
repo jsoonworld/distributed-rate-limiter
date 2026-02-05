@@ -1,0 +1,14 @@
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.jsoonworld.ratelimiter: DEBUG
+
+spring:
+  security:
+    user:
+      name: test
+      password: test

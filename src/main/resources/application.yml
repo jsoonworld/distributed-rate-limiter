@@ -23,19 +23,30 @@ rate-limiter:
 management:
   endpoints:
     web:
+      base-path: /actuator
       exposure:
         include: health, info, prometheus, metrics
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:default}
 
 server:
   port: 8080
 
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   level:
-    com.jsoonworld.ratelimiter: DEBUG
+    com.jsoonworld.ratelimiter: INFO
     org.springframework.data.redis: INFO
+    org.springframework.security: WARN
