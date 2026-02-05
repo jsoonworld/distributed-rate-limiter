@@ -25,6 +25,9 @@ management:
     web:
       exposure:
         include: health, info, prometheus, metrics
+  endpoint:
+    health:
+      show-details: when_authorized
   metrics:
     tags:
       application: ${spring.application.name}
@@ -35,3 +38,4 @@ server:
 logging:
   level:
     com.jsoonworld.ratelimiter: DEBUG
+    org.springframework.data.redis: INFO
