@@ -1,0 +1,61 @@
+# EditorConfig for distributed-rate-limiter
+# https://editorconfig.org
+
+root = true
+
+# 전체 파일 기본 설정
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Kotlin 파일 설정
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 120
+ij_kotlin_code_style_defaults = KOTLIN_OFFICIAL
+ij_kotlin_name_count_to_use_star_import = 5
+ij_kotlin_name_count_to_use_star_import_for_members = 3
+ij_kotlin_packages_to_use_import_on_demand = java.util.*,kotlinx.android.synthetic.**
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+# Gradle Kotlin DSL 파일 설정
+[*.gradle.kts]
+indent_size = 4
+
+# YAML 파일 설정
+[*.{yml,yaml}]
+indent_size = 2
+
+# Markdown 파일 설정
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# JSON 파일 설정
+[*.json]
+indent_size = 2
+
+# XML 파일 설정 (Spring 설정 파일 등)
+[*.xml]
+indent_size = 4
+
+# Properties 파일 설정
+[*.properties]
+charset = utf-8
+
+# Shell 스크립트 설정
+[*.sh]
+end_of_line = lf
+
+# Batch 파일 설정
+[*.bat]
+end_of_line = crlf
+
+# Gradle Wrapper 설정
+[gradle/wrapper/gradle-wrapper.properties]
+indent_size = 4
