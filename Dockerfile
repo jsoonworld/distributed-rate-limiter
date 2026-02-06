@@ -28,11 +28,9 @@ COPY rate-limiter-core/src rate-limiter-core/src
 COPY rate-limiter-spring-boot-starter/src rate-limiter-spring-boot-starter/src
 COPY rate-limiter-app/src rate-limiter-app/src
 
-# Build application
-RUN ./gradlew :rate-limiter-app:bootJar --no-daemon -x test
-
-# Extract JAR file (Spring Boot Layered JAR)
-RUN java -Djarmode=layertools -jar rate-limiter-app/build/libs/*.jar extract
+# Build application and extract layered JAR
+RUN ./gradlew :rate-limiter-app:bootJar --no-daemon -x test && \
+    java -Djarmode=layertools -jar rate-limiter-app/build/libs/*.jar extract
 
 # ============================================
 # Stage 2: Runtime
@@ -40,6 +38,7 @@ RUN java -Djarmode=layertools -jar rate-limiter-app/build/libs/*.jar extract
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
 # Security: Create non-root user and install wget for healthcheck
+# hadolint ignore=DL3018
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup && \
     apk add --no-cache wget
