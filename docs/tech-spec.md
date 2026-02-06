@@ -309,16 +309,17 @@ rate_limiter:sliding_window:api_key:abc123
 ```kotlin
 data class RateLimitResult(
     val allowed: Boolean,
-    val remainingTokens: Long,
-    val resetTimeSeconds: Long,
-    val retryAfterSeconds: Long? = null
+    val remaining: Long,
+    val resetAfterSeconds: Long,
+    val retryAfterSeconds: Long
 )
 
 enum class RateLimitAlgorithm {
     TOKEN_BUCKET,
-    SLIDING_WINDOW_LOG,
-    FIXED_WINDOW,        // 예정
-    LEAKY_BUCKET         // 예정
+    SLIDING_WINDOW,
+    SLIDING_WINDOW_COUNTER,  // Not yet implemented
+    FIXED_WINDOW,            // Not yet implemented
+    LEAKY_BUCKET             // Not yet implemented
 }
 ```
 
@@ -347,9 +348,10 @@ GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 {
   "allowed": true,
   "key": "user:123",
-  "remainingTokens": 95,
-  "resetTimeSeconds": 10,
-  "retryAfterSeconds": null,
+  "algorithm": "TOKEN_BUCKET",
+  "remaining": 95,
+  "resetAfterSeconds": 10,
+  "retryAfterSeconds": 0,
   "message": "Request allowed"
 }
 ```
@@ -359,8 +361,9 @@ GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 {
   "allowed": false,
   "key": "user:123",
-  "remainingTokens": 0,
-  "resetTimeSeconds": 5,
+  "algorithm": "TOKEN_BUCKET",
+  "remaining": 0,
+  "resetAfterSeconds": 5,
   "retryAfterSeconds": 5,
   "message": "Rate limit exceeded"
 }
@@ -371,7 +374,7 @@ GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 | Header | Description |
 |--------|-------------|
 | `X-RateLimit-Remaining` | 남은 요청 가능 횟수 |
-| `X-RateLimit-Reset` | 리셋까지 남은 시간 (초) |
+| `X-RateLimit-Reset` | Unix epoch timestamp when limit resets |
 | `Retry-After` | 재시도까지 대기 시간 (초, 429일 때만) |
 
 ### 5.4 Client Key Extraction

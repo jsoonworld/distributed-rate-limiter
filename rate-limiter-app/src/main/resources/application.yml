@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: rate-limiter-app
+
+  security:
+    user:
+      name: ${ACTUATOR_USER:admin}
+      password: ${ACTUATOR_PASSWORD:admin}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 2
+
+# Rate Limiter settings (read by Starter)
+rate-limiter:
+  enabled: true
+  algorithm: TOKEN_BUCKET
+  token-bucket:
+    capacity: 100
+    refill-rate: 10
+  sliding-window:
+    window-size: 60
+    max-requests: 100
+  metrics:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, info, prometheus, metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:default}
+
+server:
+  port: 8080
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    com.jsoonworld.ratelimiter: INFO
+    org.springframework.data.redis: INFO
+    org.springframework.security: WARN

@@ -102,8 +102,10 @@ GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 {
   "allowed": true,
   "key": "user:123",
-  "remainingTokens": 95,
-  "resetTimeSeconds": 10,
+  "algorithm": "TOKEN_BUCKET",
+  "remaining": 95,
+  "resetAfterSeconds": 10,
+  "retryAfterSeconds": 0,
   "message": "Request allowed"
 }
 ```

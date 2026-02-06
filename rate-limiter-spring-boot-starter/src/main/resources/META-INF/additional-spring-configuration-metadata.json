@@ -1,0 +1,61 @@
+{
+  "properties": [
+    {
+      "name": "rate-limiter.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable or disable rate limiter auto-configuration.",
+      "defaultValue": true
+    },
+    {
+      "name": "rate-limiter.algorithm",
+      "type": "com.jsoonworld.ratelimiter.core.RateLimitAlgorithm",
+      "description": "Default rate limiting algorithm.",
+      "defaultValue": "TOKEN_BUCKET"
+    },
+    {
+      "name": "rate-limiter.token-bucket.capacity",
+      "type": "java.lang.Long",
+      "description": "Maximum number of tokens in the bucket.",
+      "defaultValue": 100
+    },
+    {
+      "name": "rate-limiter.token-bucket.refill-rate",
+      "type": "java.lang.Long",
+      "description": "Number of tokens added per second.",
+      "defaultValue": 10
+    },
+    {
+      "name": "rate-limiter.sliding-window.window-size",
+      "type": "java.lang.Long",
+      "description": "Sliding window size in seconds.",
+      "defaultValue": 60
+    },
+    {
+      "name": "rate-limiter.sliding-window.max-requests",
+      "type": "java.lang.Long",
+      "description": "Maximum requests allowed in the window.",
+      "defaultValue": 100
+    },
+    {
+      "name": "rate-limiter.metrics.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable or disable metrics collection.",
+      "defaultValue": true
+    }
+  ],
+  "hints": [
+    {
+      "name": "rate-limiter.algorithm",
+      "values": [
+        {
+          "value": "TOKEN_BUCKET",
+          "description": "Token bucket algorithm - allows burst traffic."
+        },
+        {
+          "value": "SLIDING_WINDOW",
+          "description": "Sliding window log algorithm - accurate rate limiting."
+        }
+      ]
+    }
+  ]
+}

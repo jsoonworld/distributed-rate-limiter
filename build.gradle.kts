@@ -1,78 +1,88 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "3.2.2"
-    id("io.spring.dependency-management") version "1.1.4"
-    kotlin("jvm") version "1.9.22"
-    kotlin("plugin.spring") version "1.9.22"
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.spring) apply false
+    alias(libs.plugins.kotlin.kapt) apply false
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.spring.dependency.management) apply false
     jacoco
 }
 
 group = "com.jsoonworld"
 version = "0.0.1-SNAPSHOT"
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_21
-}
-
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    // Spring Boot
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
-    implementation("org.springframework.boot:spring-boot-starter-aop")
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.boot:spring-boot-starter-security")
-
-    // Kotlin
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
-
-    // Redis
-    implementation("io.lettuce:lettuce-core")
-
-    // Monitoring
-    implementation("io.micrometer:micrometer-registry-prometheus")
-
-    // Test
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("io.mockk:mockk:1.13.9")
-    testImplementation("org.testcontainers:testcontainers:1.19.3")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.3")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs += "-Xjsr305=strict"
-        jvmTarget = "21"
+// All projects common settings
+allprojects {
+    repositories {
+        mavenCentral()
     }
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
-    finalizedBy(tasks.jacocoTestReport)
+// Sub-projects common settings
+subprojects {
+    apply(plugin = "jacoco")
+
+    // Kotlin compile options
+    tasks.withType<KotlinCompile> {
+        kotlinOptions {
+            freeCompilerArgs += "-Xjsr305=strict"
+            jvmTarget = "21"
+        }
+    }
+
+    // Test settings
+    tasks.withType<Test> {
+        useJUnitPlatform()
+    }
+
+    // JaCoCo settings
+    configure<JacocoPluginExtension> {
+        toolVersion = "0.8.11"
+    }
+
+    tasks.withType<JacocoReport> {
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+        }
+    }
 }
 
-// JaCoCo Configuration
-jacoco {
-    toolVersion = "0.8.11"
-}
+// Aggregated coverage report
+tasks.register<JacocoReport>("jacocoRootReport") {
+    dependsOn(subprojects.map { it.tasks.named("test") })
 
-tasks.jacocoTestReport {
-    dependsOn(tasks.test)
+    additionalSourceDirs.setFrom(subprojects.flatMap { subproject ->
+        subproject.extensions.findByType<SourceSetContainer>()?.getByName("main")?.allSource?.srcDirs ?: emptySet()
+    })
+
+    sourceDirectories.setFrom(subprojects.flatMap { subproject ->
+        subproject.extensions.findByType<SourceSetContainer>()?.getByName("main")?.allSource?.srcDirs ?: emptySet()
+    })
+
+    classDirectories.setFrom(subprojects.flatMap { subproject ->
+        subproject.extensions.findByType<SourceSetContainer>()?.getByName("main")?.output?.classesDirs ?: emptySet()
+    })
+
+    executionData.setFrom(subprojects.flatMap { subproject ->
+        subproject.tasks.withType<Test>().map { test ->
+            test.extensions.getByType<JacocoTaskExtension>().destinationFile
+        }
+    })
+
     reports {
-        xml.required.set(true)
         html.required.set(true)
+        html.outputLocation.set(layout.buildDirectory.dir("reports/jacoco/aggregate"))
+        xml.required.set(true)
+        xml.outputLocation.set(layout.buildDirectory.file("reports/jacoco/aggregate/jacocoTestReport.xml"))
     }
 }
 
-tasks.jacocoTestCoverageVerification {
+// Coverage verification (80% minimum)
+tasks.register<JacocoCoverageVerification>("jacocoCoverageVerification") {
+    dependsOn("jacocoRootReport")
+
     violationRules {
         rule {
             limit {
@@ -80,4 +90,14 @@ tasks.jacocoTestCoverageVerification {
             }
         }
     }
+
+    classDirectories.setFrom(subprojects.flatMap { subproject ->
+        subproject.extensions.findByType<SourceSetContainer>()?.getByName("main")?.output?.classesDirs ?: emptySet()
+    })
+
+    executionData.setFrom(subprojects.flatMap { subproject ->
+        subproject.tasks.withType<Test>().map { test ->
+            test.extensions.getByType<JacocoTaskExtension>().destinationFile
+        }
+    })
 }
