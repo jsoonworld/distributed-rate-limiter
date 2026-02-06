@@ -1,0 +1,24 @@
+# Reviewer auto-assignment configuration
+
+# Enable reviewer auto-assignment
+addReviewers: true
+
+# Assign PR author as assignee
+addAssignees: author
+
+# Reviewer list (random selection)
+reviewers:
+  - jsoonworld
+
+# Number of reviewers
+numberOfReviewers: 1
+
+# Review groups
+reviewGroups:
+  maintainers:
+    - jsoonworld
+
+# Skip keywords - PRs with these keywords in title won't trigger auto-assign
+skipKeywords:
+  - wip
+  - draft

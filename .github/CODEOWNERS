@@ -1,0 +1,35 @@
+# Code owners - PR reviewers are automatically assigned
+
+# Default owners for everything
+* @jsoonworld
+
+# Core module
+/rate-limiter-core/ @jsoonworld
+
+# Spring Boot Starter module
+/rate-limiter-spring-boot-starter/ @jsoonworld
+
+# App module
+/rate-limiter-app/ @jsoonworld
+
+# Algorithm implementations
+**/algorithm/ @jsoonworld
+
+# Configuration changes
+**/config/ @jsoonworld
+**/resources/ @jsoonworld
+
+# API/Controller changes
+**/controller/ @jsoonworld
+
+# CI/CD changes require DevOps review
+/.github/ @jsoonworld
+
+# Documentation
+/docs/ @jsoonworld
+*.md @jsoonworld
+
+# Build configuration
+build.gradle.kts @jsoonworld
+settings.gradle.kts @jsoonworld
+**/build.gradle.kts @jsoonworld

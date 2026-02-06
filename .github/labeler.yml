@@ -1,0 +1,87 @@
+# PR auto-labeling rules
+
+# Core module changes
+core:
+  - changed-files:
+      - any-glob-to-any-file: 'rate-limiter-core/**/*'
+
+# Spring Boot Starter changes
+starter:
+  - changed-files:
+      - any-glob-to-any-file: 'rate-limiter-spring-boot-starter/**/*'
+
+# App module changes
+app:
+  - changed-files:
+      - any-glob-to-any-file: 'rate-limiter-app/**/*'
+
+# Algorithm changes
+algorithm:
+  - changed-files:
+      - any-glob-to-any-file: '**/algorithm/**/*'
+
+# Configuration changes
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/config/**/*'
+          - '**/resources/**/*'
+
+# Controller/API changes
+api:
+  - changed-files:
+      - any-glob-to-any-file: '**/controller/**/*'
+
+# Service layer changes
+service:
+  - changed-files:
+      - any-glob-to-any-file: '**/service/**/*'
+
+# Model/DTO changes
+model:
+  - changed-files:
+      - any-glob-to-any-file: '**/model/**/*'
+
+# Test changes
+test:
+  - changed-files:
+      - any-glob-to-any-file: '**/test/**/*'
+
+# Documentation changes
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
+
+# CI/CD changes
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**/*'
+          - '.githooks/**/*'
+
+# Build configuration
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'build.gradle.kts'
+          - 'settings.gradle.kts'
+          - '**/build.gradle.kts'
+          - 'gradle/**/*'
+
+# Docker related
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docker/**/*'
+          - '**/Dockerfile'
+          - 'docker-compose*.yml'
+
+# Dependencies
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/build.gradle.kts'
+          - 'gradle.properties'
+          - 'gradle/libs.versions.toml'
