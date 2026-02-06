@@ -1,0 +1,142 @@
+name: Coverage Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+env:
+  JAVA_VERSION: '21'
+  COVERAGE_THRESHOLD: 80
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  coverage:
+    name: Coverage Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run tests with coverage
+        run: ./gradlew test jacocoRootReport --no-daemon
+
+      - name: JaCoCo Coverage Report
+        id: jacoco
+        uses: madrapps/jacoco-report@v1.6.1
+        with:
+          paths: build/reports/jacoco/aggregate/jacocoTestReport.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: ${{ env.COVERAGE_THRESHOLD }}
+          min-coverage-changed-files: ${{ env.COVERAGE_THRESHOLD }}
+          title: '## Coverage Report'
+          update-comment: true
+          pass-emoji: ':white_check_mark:'
+          fail-emoji: ':x:'
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=${{ steps.jacoco.outputs.coverage-overall }}
+          echo "Overall coverage: ${COVERAGE}%"
+
+          if (( $(echo "$COVERAGE < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "::warning::Coverage ${COVERAGE}% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+            echo "Consider improving test coverage to meet the 80% target."
+          else
+            echo "::notice::Coverage ${COVERAGE}% meets threshold ${{ env.COVERAGE_THRESHOLD }}%"
+          fi
+
+      - name: Coverage report summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const coverage = ${{ steps.jacoco.outputs.coverage-overall }};
+            const changedCoverage = ${{ steps.jacoco.outputs.coverage-changed-files }};
+            const threshold = ${{ env.COVERAGE_THRESHOLD }};
+
+            let statusMessage = '';
+            let status = 'success';
+
+            if (coverage < threshold) {
+              statusMessage = `Coverage ${coverage}% is below threshold ${threshold}%. Consider improving test coverage.`;
+            } else {
+              statusMessage = `Coverage ${coverage}% meets requirements`;
+            }
+
+            // Create check run (always success, but show coverage status)
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Coverage Report',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: status,
+              output: {
+                title: 'Coverage Report',
+                summary: statusMessage,
+                text: `
+                  | Metric | Value | Threshold | Status |
+                  |--------|-------|-----------|--------|
+                  | Overall Coverage | ${coverage}% | ${threshold}% | ${coverage >= threshold ? ':white_check_mark:' : ':warning:'} |
+                  | Changed Files | ${changedCoverage}% | ${threshold}% | ${changedCoverage >= threshold ? ':white_check_mark:' : ':warning:'} |
+                `
+              }
+            });
+
+  coverage-badge:
+    name: Update Coverage Badge
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    needs: coverage
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Generate coverage report
+        run: |
+          chmod +x gradlew
+          ./gradlew test jacocoRootReport --no-daemon
+
+      - name: Generate JaCoCo Badge
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          generate-branches-badge: true
+          jacoco-csv-file: build/reports/jacoco/aggregate/jacocoTestReport.csv
+          badges-directory: .github/badges
+          generate-coverage-badge: true
+          coverage-badge-filename: coverage.svg
+          branches-badge-filename: branches.svg
+
+      - name: Commit badge
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'ci: Update coverage badge'
+          file_pattern: '.github/badges/*.svg'
+          skip_dirty_check: false
