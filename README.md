@@ -45,14 +45,14 @@ GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 ```json
 {
   "allowed": true,
-  "remainingTokens": 95,
-  "resetTimeSeconds": 10
+  "remaining": 95,
+  "resetAfterSeconds": 10
 }
 ```
 
 **Headers:**
 - `X-RateLimit-Remaining`: Remaining requests
-- `X-RateLimit-Reset`: Seconds until reset
+- `X-RateLimit-Reset`: Unix epoch timestamp when limit resets
 - `Retry-After`: Seconds to wait (429 only)
 
 ### Other Endpoints
@@ -86,11 +86,19 @@ GET /api/v1/rate-limit/check?algorithm=TOKEN_BUCKET&key=user:123
 
 ```yaml
 rate-limiter:
-  default:
-    algorithm: TOKEN_BUCKET
+  enabled: true
+  algorithm: TOKEN_BUCKET
+  token-bucket:
     capacity: 100
     refill-rate: 10
+    key-prefix: "rate_limiter:token_bucket:"
+  sliding-window:
     window-size: 60
+    max-requests: 100
+    key-prefix: "rate_limiter:sliding_window:"
+  metrics:
+    enabled: true
+    prefix: "rate_limiter"
 ```
 
 ## Monitoring
