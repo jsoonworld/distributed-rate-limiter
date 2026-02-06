@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.github
+.githooks
+
+# Gradle build artifacts
+.gradle
+build
+**/build
+!**/build.gradle.kts
+
+# IDE
+.idea
+*.iml
+*.ipr
+*.iws
+
+# Documentation
+*.md
+docs
+
+# Docker (avoid recursive copy)
+docker
+Dockerfile*
+docker-compose*.yml
+
+# Claude Code
+.claude
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test and coverage reports
+**/test-results
+**/jacoco
+**/reports
+
+# Local configuration
+*.local
+*.local.*
+.env
+.env.*
+
+# Logs
+*.log
+logs
