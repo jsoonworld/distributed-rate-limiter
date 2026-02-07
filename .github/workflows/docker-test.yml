@@ -157,7 +157,6 @@ jobs:
           IMAGE_TAG: rate-limiter-test:${{ github.sha }}
         run: |
           cat > docker-compose.test.yml << EOF
-          version: '3.8'
           services:
             app:
               image: ${IMAGE_TAG}
@@ -166,7 +165,6 @@ jobs:
               environment:
                 - SPRING_DATA_REDIS_HOST=redis
                 - SPRING_PROFILES_ACTIVE=local
-                # Actuator authentication credentials for CI testing
                 - ACTUATOR_USER=actuator
                 - ACTUATOR_PASSWORD=testpassword
               depends_on:
@@ -177,7 +175,7 @@ jobs:
                 interval: 10s
                 timeout: 5s
                 retries: 10
-                start_period: 30s
+                start_period: 60s
             redis:
               image: redis:7-alpine
               healthcheck:
@@ -187,21 +185,16 @@ jobs:
                 retries: 5
           EOF
 
-      - name: Start services
-        run: docker compose -f docker-compose.test.yml up -d
-
-      - name: Wait for services
-        run: |
-          echo "Waiting for services to be healthy..."
-          timeout 180 bash -c 'until docker compose -f docker-compose.test.yml ps | grep -q "healthy"; do sleep 5; done'
+      - name: Start services and wait for healthy
+        run: docker compose -f docker-compose.test.yml up -d --wait --wait-timeout 180
 
       - name: Test endpoints
         run: |
           # Health check (public endpoint, no auth required)
-          curl -f http://localhost:8080/actuator/health
+          curl -f --retry 5 --retry-delay 5 --retry-all-errors http://localhost:8080/actuator/health
 
           # Prometheus metrics (requires authentication)
-          curl -f -u actuator:testpassword http://localhost:8080/actuator/prometheus | head -20
+          curl -f --retry 3 --retry-delay 3 --retry-all-errors -u actuator:testpassword http://localhost:8080/actuator/prometheus | head -20
 
       - name: Show logs on failure
         if: failure()

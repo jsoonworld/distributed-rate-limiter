@@ -9,7 +9,7 @@ schemaVersion: 2.0.0
 # ============================================
 metadataTest:
   # Environment variables check
-  env:
+  envVars:
     - key: JAVA_OPTS
       value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -Djava.security.egd=file:/dev/./urandom"
 
