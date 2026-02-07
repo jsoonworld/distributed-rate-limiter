@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'rate-limiter'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['app:8080']
+    # Basic auth for accessing protected actuator endpoints
+    # Credentials must match ACTUATOR_USER/ACTUATOR_PASSWORD in docker-compose.prod.yml
+    basic_auth:
+      username: actuator
+      password: changeme
+
+  # Redis Metrics (requires redis-exporter sidecar)
+  # Redis does not expose /metrics by default. To enable Redis metrics:
+  # 1. Add redis-exporter service to docker-compose.prod.yml:
+  #    redis-exporter:
+  #      image: oliver006/redis_exporter:latest
+  #      environment:
+  #        - REDIS_ADDR=redis:6379
+  #        - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #      ports:
+  #        - "9121:9121"
+  #      networks:
+  #        - rate-limiter-network
+  #      depends_on:
+  #        - redis
+  # 2. Uncomment the job below:
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']

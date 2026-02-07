@@ -1,0 +1,57 @@
+# container-structure-test.yaml
+# Google Container Structure Test configuration
+# https://github.com/GoogleContainerTools/container-structure-test
+
+schemaVersion: 2.0.0
+
+# ============================================
+# Metadata Tests
+# ============================================
+metadataTest:
+  # Environment variables check
+  envVars:
+    - key: JAVA_OPTS
+      value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -Djava.security.egd=file:/dev/./urandom"
+
+  # Exposed ports check
+  exposedPorts: ["8080"]
+
+  # Working directory check
+  workdir: "/app"
+
+  # User check (Non-root)
+  user: "appuser"
+
+# ============================================
+# File Existence Tests
+# ============================================
+fileExistenceTests:
+  - name: 'Application JAR layers exist'
+    path: '/app/BOOT-INF'
+    shouldExist: true
+
+  - name: 'Spring Boot loader exists'
+    path: '/app/org/springframework/boot/loader'
+    shouldExist: true
+
+  - name: 'Application classes exist'
+    path: '/app/BOOT-INF/classes'
+    shouldExist: true
+
+# ============================================
+# Command Tests
+# ============================================
+commandTests:
+  - name: 'Java version check'
+    command: 'java'
+    args: ['-version']
+    expectedError: ['21']  # Java 21 check (output to stderr)
+
+  - name: 'User is not root'
+    command: 'whoami'
+    expectedOutput: ['appuser']
+
+  - name: 'wget is available for healthcheck'
+    command: 'wget'
+    args: ['--version']
+    expectedOutput: ['GNU Wget']
