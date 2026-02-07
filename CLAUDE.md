@@ -257,3 +257,52 @@ feat(algorithm): add leaky bucket rate limiter
 2. Ensure tests pass
 3. Request code review
 4. Use squash merge
+
+## Agent Team & Subagent Guidelines
+
+### When to Use Agent Teams
+
+Use agent teams for tasks that benefit from **parallel exploration with multiple perspectives**:
+
+- **Parallel code review**: Multiple reviewers checking security, performance, and test coverage simultaneously (`/code-review-team`)
+- **Bug investigation with competing hypotheses**: Multiple teammates each investigating a different root cause theory (`/bug-investigate-team`)
+- **Feature development across layers**: Teammates owning algorithm, API, testing, and DevOps modules in parallel (`/feature-dev-team`)
+- **Parallel refactoring**: Each teammate refactoring a separate module without file conflicts (`/parallel-refactor-team`)
+- **Cross-layer coordination**: Frontend, backend, and testing work happening simultaneously
+
+### When to Use Subagents (NOT Teams)
+
+Use lightweight subagents for **focused, isolated tasks** that don't need collaboration:
+
+- Library/framework research and comparison (`/research`)
+- Documentation review and summary
+- Single unit test generation for a specific function
+- API client generation from a spec
+- Data format conversion
+
+### When to Avoid Both
+
+- **Sequential tasks**: Where each step depends on the previous result
+- **Same-file editing**: Multiple agents editing the same file causes conflicts
+- **Trivial tasks**: Simple one-line fixes or obvious changes
+- **High-dependency tasks**: Where frequent coordination overhead exceeds the parallel benefit
+
+### Agent Team Best Practices
+
+1. **Clear ownership**: Assign each teammate to distinct file sets - no overlapping
+2. **Task sizing**: Keep 5-6 clear tasks per teammate
+3. **Rich context**: Provide detailed background in the creation prompt
+4. **No premature work**: Wait for teammates to finish before starting implementation
+5. **Monitor progress**: Check teammate progress and unblock issues
+6. **File separation**: Each teammate must own different files to prevent merge conflicts
+7. **Model selection**: Use Haiku for quick research tasks, Sonnet for implementation, Opus for complex reasoning
+
+### Available Team Commands
+
+| Command | Type | Use Case |
+|---------|------|----------|
+| `/code-review-team` | Agent Team | Parallel PR review (Security + Performance + Testing) |
+| `/bug-investigate-team` | Agent Team | Root cause analysis with competing hypotheses |
+| `/feature-dev-team` | Agent Team | Parallel feature development across layers |
+| `/parallel-refactor-team` | Agent Team | Parallel module refactoring |
+| `/research` | Subagent | Lightweight research and comparison |
